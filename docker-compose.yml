@@ -1,0 +1,55 @@
+# Aegis SOC platform
+#
+#   1. cp .env.example .env   and replace every CHANGE_ME value
+#   2. docker compose up --build
+#   3. open http://localhost:5173
+#
+# Optional local LLM (pulls a model on first start):
+#   docker compose --profile llm up --build
+#   then set OLLAMA_BASE_URL=http://ollama:11434 and OLLAMA_MODEL=llama3.1 in .env
+
+services:
+  api:
+    build:
+      context: ./backend
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: sqlite:////app/data/soc.db
+      CORS_ORIGINS: http://localhost:5173
+      # nginx is the only ingress and sets X-Forwarded-For for the API.
+      TRUST_PROXY_HEADERS: "true"
+    volumes:
+      - soc-data:/app/data
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+
+  web:
+    build:
+      context: ./frontend
+    depends_on:
+      - api
+    ports:
+      - "5173:80"
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+
+  ollama:
+    image: ollama/ollama:latest
+    profiles: ["llm"]
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-models:/root/.ollama
+    restart: unless-stopped
+
+volumes:
+  soc-data:
+  ollama-models:

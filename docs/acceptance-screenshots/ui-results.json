@@ -1,0 +1,178 @@
+{
+  "results": [
+    {
+      "name": "login page renders the sign-in form",
+      "ok": true,
+      "evidence": ""
+    },
+    {
+      "name": "admin can sign in through the UI",
+      "ok": true,
+      "evidence": ""
+    },
+    {
+      "name": "session token stored by the SPA",
+      "ok": true,
+      "evidence": ""
+    },
+    {
+      "name": "overview page renders",
+      "ok": true,
+      "evidence": ""
+    },
+    {
+      "name": "sidebar shows deterministic agent mode",
+      "ok": true,
+      "evidence": "Deterministic mode"
+    },
+    {
+      "name": "dashboard alert count matches API",
+      "ok": true,
+      "evidence": "34 vs 34"
+    },
+    {
+      "name": "dashboard open-incident count matches API",
+      "ok": true,
+      "evidence": "11 vs 11"
+    },
+    {
+      "name": "dashboard pending-approval count matches API",
+      "ok": true,
+      "evidence": "8 vs 8"
+    },
+    {
+      "name": "incident queue rendered on overview",
+      "ok": true,
+      "evidence": "6 rows"
+    },
+    {
+      "name": "alerts navigation works",
+      "ok": true,
+      "evidence": ""
+    },
+    {
+      "name": "alert counter matches API total",
+      "ok": true,
+      "evidence": "34 alerts vs 34"
+    },
+    {
+      "name": "alert search filters to matching account",
+      "ok": true,
+      "evidence": "5 rows"
+    },
+    {
+      "name": "alert detail panel opens on row click",
+      "ok": true,
+      "evidence": ""
+    },
+    {
+      "name": "incidents navigation works",
+      "ok": true,
+      "evidence": ""
+    },
+    {
+      "name": "incident list matches API count",
+      "ok": true,
+      "evidence": "14 vs 14"
+    },
+    {
+      "name": "incident detail opens from the queue",
+      "ok": true,
+      "evidence": ""
+    },
+    {
+      "name": "incident detail shows investigator findings",
+      "ok": true,
+      "evidence": ""
+    },
+    {
+      "name": "incident detail shows critic verdict",
+      "ok": true,
+      "evidence": ""
+    },
+    {
+      "name": "incident detail shows suggested actions",
+      "ok": true,
+      "evidence": ""
+    },
+    {
+      "name": "approvals navigation works",
+      "ok": true,
+      "evidence": ""
+    },
+    {
+      "name": "approving from the UI removes the item from the queue",
+      "ok": true,
+      "evidence": "8 -> 7"
+    },
+    {
+      "name": "audit navigation works",
+      "ok": true,
+      "evidence": ""
+    },
+    {
+      "name": "audit log lists entries",
+      "ok": true,
+      "evidence": "50 rows"
+    },
+    {
+      "name": "audit filter narrows entries",
+      "ok": true,
+      "evidence": "15 rows"
+    },
+    {
+      "name": "unknown incident shows an error state",
+      "ok": true,
+      "evidence": "◆\nAEGIS\nSOC ANALYST\n◉\nOverview\n⚡\nAlerts\n⚠\nIncidents\n✓\nApprovals\n≡\nAudit log\nDeterministic mode\n\nNo LLM available: OLLAMA"
+    },
+    {
+      "name": "viewer can sign in",
+      "ok": true,
+      "evidence": ""
+    },
+    {
+      "name": "viewer does not see the audit navigation",
+      "ok": true,
+      "evidence": ""
+    },
+    {
+      "name": "viewer cannot see investigate control",
+      "ok": true,
+      "evidence": ""
+    },
+    {
+      "name": "viewer cannot see approve buttons",
+      "ok": true,
+      "evidence": ""
+    },
+    {
+      "name": "viewer sees approver-required notice in approvals",
+      "ok": true,
+      "evidence": ""
+    },
+    {
+      "name": "no unexpected browser console errors",
+      "ok": true,
+      "evidence": ""
+    },
+    {
+      "name": "no unexpected failed network requests",
+      "ok": true,
+      "evidence": ""
+    },
+    {
+      "name": "no unexpected HTTP error responses",
+      "ok": true,
+      "evidence": ""
+    }
+  ],
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 404 (Not Found) http://localhost:5175/api/incidents/999999",
+    "Failed to load resource: the server responded with a status of 404 (Not Found) http://localhost:5175/api/incidents/999999"
+  ],
+  "failedRequests": [],
+  "badResponses": [
+    "404 http://localhost:5175/api/incidents/999999",
+    "404 http://localhost:5175/api/incidents/999999"
+  ]
+}
