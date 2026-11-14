@@ -74,7 +74,7 @@ export default function Login() {
         </form>
 
         <p className="tiny muted login-foot">
-          Read-only AI agents · human-approved containment · scrypt password hashing · JWT sessions
+          Read-only analysis agents · human-approved containment · scrypt password hashing · JWT sessions
         </p>
       </div>
       <div className="login-aside">

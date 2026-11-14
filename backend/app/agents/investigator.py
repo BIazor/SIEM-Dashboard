@@ -25,6 +25,13 @@ SYSTEM_PATHS = re.compile(
     r"(?i)(c:\\windows|c:\\programdata|/etc/|/usr/bin|/usr/sbin|startup folder|\\start menu\\|run key)"
 )
 
+PLACEHOLDER_VALUES = {"-", "n/a", "na", "unknown", "null", "none"}
+
+
+def _named(value: str | None) -> bool:
+    """Windows writes '-' into empty fields; treat those as no value at all."""
+    return bool(value) and value.strip().lower() not in PLACEHOLDER_VALUES
+
 
 def heuristic_findings(incident: Incident, evidence: Evidence) -> tuple[list[dict], list[str], list[dict]]:
     """Return (findings, hypotheses, recommendations) derived deterministically."""
@@ -51,10 +58,11 @@ def heuristic_findings(incident: Incident, evidence: Evidence) -> tuple[list[dic
     if category == "brute_force":
         failures = [a for a in evidence.alerts if "fail" in (a["title"] + " " + a.get("description", "")).lower()]
         sources = sorted({a["src_ip"] for a in failures if a["src_ip"]})
-        targets = sorted({a["username"] for a in failures if a["username"]})
+        targets = sorted({a["username"] for a in failures if _named(a["username"])})
+        accused = ", ".join(targets) if targets else "an unidentified account"
         add(
             f"{len(failures)} authentication failures were recorded against "
-            f"{', '.join(targets) if targets else entity} from {', '.join(sources) if sources else 'an internal source'}.",
+            f"{accused} from {', '.join(sources) if sources else 'an internal source'}.",
             [a["alert_id"] for a in failures],
         )
         if len(sources) == 1 and len(failures) >= 5:
