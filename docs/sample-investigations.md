@@ -1,12 +1,8 @@
 # Sample investigations
 
-These are excerpts of real API responses produced by `python -m app.sim.run` on the build host, with no
-LLM configured (`LLM_PROVIDER=auto`, no Ollama, no API key). In that mode findings come from the
-deterministic engine and each record carries the reason in `error`.
-
-The model layer produces the same JSON contract; when enabled it can rewrite the summary, add
-hypotheses and add recommendations, but confirmed facts and their alert IDs still come from the
-deterministic engine.
+These are excerpts of real API responses produced by `python -m app.sim.run` on the build host. Every
+finding comes from the rule-based investigator, and each record carries `provider: heuristic` and
+`model: rules-v1`. Confirmed facts and their alert IDs always trace back to stored alerts.
 
 ---
 
@@ -36,7 +32,6 @@ deterministic engine.
 
 - No authentication outcome is present: we cannot tell whether any attempt succeeded.
 - No endpoint telemetry (Sysmon 4624/4625 correlation) to confirm which host was targeted.
-- Independent model review unavailable: no Ollama, no API key — deterministic analysis used.
 
 **Analyst takeaway:** block at the perimeter, confirm with the account owner whether any logon
 succeeded, and check the workstation for interactive logons from 203.0.113.45.
@@ -144,5 +139,4 @@ pair. Contain first, then verify hashes against a known-good image.
    explicitly separate.
 2. **Independent review** — the critic re-derives counts and always lists what is *not* known.
 3. **No false certainty** — with no model, confidence stays below 0.7 and the reason is recorded
-   (`provider: heuristic`, `error: No LLM available ...`).
 4. **Human control** — actions are proposals with risk levels; approval is required and audited.

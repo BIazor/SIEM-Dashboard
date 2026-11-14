@@ -7,7 +7,7 @@ Copy is structured for a projects grid: the **bubble** line is what sits on the 
 
 ## Bubble (on the card)
 
-**Aegis SOC** — an AI-assisted security operations console that turns real Windows event logs into
+**Aegis SOC** — a security operations console that turns real Windows event logs into
 investigated incidents and human-approved response.
 
 _Tags:_ FastAPI · React · TypeScript · SQLite · Security Engineering

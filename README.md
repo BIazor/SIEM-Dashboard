@@ -1,12 +1,12 @@
 # Aegis SOC
 
 A small security-operations dashboard I built to learn how a real SOC works — and to see whether an
-AI assistant can actually help an analyst without ever being allowed to do anything on its own.
+automated assistant can help an analyst without ever being allowed to act on its own.
 
-I'm early in my cybersecurity career. Most of what I read about "AI in security" was either a vendor
-slide deck or a chatbot demo, so I wanted something I could run on my own laptop: point some logs at
-it, watch alerts turn into incidents, have two agents read the evidence, and then decide myself
-whether to act. That's the whole idea. The AI explains and suggests. A human clicks.
+I'm early in my cybersecurity career. Most of what I read about "automated security" was either a
+vendor slide deck or a chatbot demo, so I wanted something I could run on my own laptop: point some
+logs at it, watch alerts turn into incidents, have two agents read the evidence, and then decide
+myself whether to act. That's the whole idea. The agents explain and suggest. A human clicks.
 
 This is a learning project, not a product. Below I've listed what genuinely works and what doesn't,
 because the honest list is the part I'd want to read if I were looking at someone else's repo.
@@ -27,24 +27,24 @@ This app does that loop:
 2. **The app tidies them up.** Timestamps, hostnames, IP addresses and usernames get normalised, junk
    and control characters get stripped, and duplicates get dropped, so the same event sent twice
    doesn't become two alerts.
-3. **It guesses what each alert means.** A set of plain regex rules sorts each alert into a category
+3. **It works out what each alert means.** A set of plain regex rules sorts each alert into a category
    (failed logins, PowerShell abuse, network beaconing, privilege changes, file tampering), gives it a
    severity, and tags it with a MITRE ATT&CK technique. This is rules, not machine learning — I'd
    rather have something I can read and explain than a black box I can't.
 4. **Related alerts become one incident.** Eight failed logons from the same address against the same
    host in a short window is not eight things to look at; it's one brute-force attempt. Grouping them
    is what makes the queue human-sized.
-5. **Two AI agents read the file.** The *investigator* writes up what happened, in sentences, citing
-   the exact alert IDs it used. The *critic* then checks that write-up independently and can disagree
-   with it. Both agents get six read-only tools — they can look things up, never change anything.
+5. **Two agents read the file.** The *investigator* writes up what happened, in sentences, citing the
+   exact alert IDs it used. The *critic* then checks that write-up independently and can disagree with
+   it. Both agents get their evidence through six read-only tools — they can look things up, never
+   change anything.
 6. **A human approves.** Any suggested response (block an IP, isolate a host, disable an account) sits
    in an approval queue until someone with the approver role decides. Analysts can propose actions but
    can't approve their own containment.
 7. **Everything is written down.** Who did what, when, from which address, into an audit log.
 
-One rule I cared about a lot: **the app never pretends a model wrote something it didn't.** If no
-language model is reachable, it says so on screen and in every investigation record, and falls back to
-a deterministic ("rules only") analysis that is labelled as such.
+Every conclusion the investigator draws carries the alert IDs that support it. If it can't point at
+evidence, the critic says so, and the finding never reaches the incident summary as confirmed.
 
 ---
 
@@ -63,7 +63,7 @@ I had to look most of these up myself, so here they are in one place.
 | **Correlation** | The grouping step — deciding which alerts belong to the same story. |
 | **Normalisation** | Rewriting messy logs from different sources into one consistent shape. |
 | **MITRE ATT&CK** | A public catalogue of attacker techniques with IDs (T1110 = brute force). Used as a shared label. |
-| **LLM / AI agent** | A language model given a specific job and a limited set of tools. Here: explain, don't act. |
+| **Agent** | A small program with one narrow job and a limited set of tools. Here: explain and check, never act. |
 | **JWT** | The signed token you get at login; the browser sends it with each request. |
 | **RBAC** | Role-based access control — what each user type is allowed to do. |
 
@@ -83,14 +83,17 @@ I had to look most of these up myself, so here they are in one place.
 | Human approval queue plus audit log | Works, tested |
 | Login, roles, password hashing, rate limiting | Works, tested |
 | React dashboard | Works, clicked through in a real browser |
-| Docker Compose deployment | Written but **never run** — I don't have Docker on this machine |
-| A real AI model (Ollama or any OpenAI-style API) | Code and tests done against a fake model; **never tried with a live one** |
 | Pulling alerts from the Wazuh API | Not built — alerts are pushed to this app, not pulled |
 | Actually blocking, isolating or disabling anything | Not built, on purpose — approvals are recorded as a dry run |
 
+There is no language-model integration. The analysis is rule-based end to end, which means it runs
+offline, costs nothing, and can explain every sentence it produces — but it only recognises the five
+behaviour families I wrote rules for.
+
 ### What it looks like
 
-All the data in these screenshots is fake, generated by the simulator described further down.
+All the data in these screenshots is fake, generated by the simulator described further down. They
+were captured before the analysis layer was simplified, so the wording differs slightly from today's UI.
 
 ![Dashboard overview](docs/acceptance-screenshots/02-overview.png)
 
@@ -129,10 +132,10 @@ The longer version, with the data model and the exact correlation rules, is in
 
 - **Backend** — Python 3.12+ (I used 3.13) with FastAPI. Data goes in SQLite through SQLAlchemy, so you
   don't need to install a database to try it; any SQLAlchemy URL works if you'd rather use PostgreSQL.
-- **AI layer** — one small client that can talk to Ollama, to an OpenAI-compatible endpoint, or to the
-  built-in rules engine. The agents have no shell, no database writes and no ability to make requests.
+- **Analysis** — five rule families in plain Python, plus a deterministic investigator and critic that
+  work only from evidence collected through the read-only tool layer. No external service, no model,
+  no API key.
 - **Frontend** — React 19, TypeScript and Vite, with charts from Recharts and hand-written CSS.
-- **Deployment** — Docker Compose (API plus an nginx-served frontend, with an optional Ollama profile).
 
 ## How the code is laid out
 
@@ -140,18 +143,17 @@ The longer version, with the data model and the exact correlation rules, is in
 backend/
   app/
     api/            HTTP endpoints: auth, ingest, alerts, incidents, approvals, stats, audit, agents
-    agents/         tool layer, guardrails, model client, investigator, critic, orchestrator
+    agents/         tool layer, investigator, critic, orchestrator
     detection/      classification rules and incident correlation
     ingestion/      turning Wazuh/Sysmon logs into alerts
     sim/            five fake attack scenarios + a command-line runner
     tools/          Windows Event Log collector (PowerShell based)
     main.py         app setup, CORS, security headers
-  tests/            63 pytest tests
+  tests/            56 pytest tests
 frontend/
   src/pages/        Login, Overview, Alerts, Incidents, IncidentDetail, Approvals, AuditLog
   src/components/   layout and shared UI pieces
 docs/               architecture, agent design, security model, testing, sample investigations
-docker-compose.yml
 .env.example
 ```
 
@@ -159,8 +161,7 @@ docker-compose.yml
 
 ## Getting it running on your own machine
 
-You need Python 3.12 or newer and Node 20 or newer. Ollama is optional — without it everything still
-works, just with the rules-only analysis.
+You need Python 3.12 or newer and Node 20 or newer.
 
 ### 1. Start the backend
 
@@ -323,33 +324,6 @@ PowerShell, network and privilege categories.
 
 ---
 
-## Turning on a real AI model (optional)
-
-Everything works without this. With it, the investigator writes its findings with a language model
-instead of the rules engine — which reads nicer, but is not more accurate.
-
-| Variable | What it's for |
-| --- | --- |
-| `LLM_PROVIDER` | `auto` (default), `ollama`, `openai`, `none` |
-| `OLLAMA_BASE_URL` / `OLLAMA_MODEL` | e.g. `http://localhost:11434`, `llama3.1` |
-| `OPENAI_BASE_URL` / `OPENAI_MODEL` / `OPENAI_API_KEY` | any OpenAI-compatible endpoint |
-| `LLM_TIMEOUT_SECONDS` | request timeout, default 45 |
-
-With `auto`, it tries Ollama, then an OpenAI-compatible endpoint if a key is set, then the rules engine.
-You can see which is active at any time from `GET /api/agents/status` or the badge in the sidebar.
-
-```bash
-ollama pull llama3.1
-ollama serve
-# then in .env: LLM_PROVIDER=ollama
-```
-
-Model replies are thrown away unless they match a strict JSON schema and cite alert IDs that actually
-belong to that incident. The rejection is recorded on the investigation and the deterministic findings
-stay, so a model can't invent evidence and have it look confirmed.
-
----
-
 ## Who can do what
 
 | Role | See data | Run investigation | Suggest a response | Approve / reject | Audit log |
@@ -380,7 +354,7 @@ use, but hiding a button is not security — the check that matters is the one t
 | `POST` | `/api/approvals/{id}/decision` | Approve or reject (approver, admin) |
 | `GET` | `/api/stats/overview` | Dashboard numbers |
 | `GET` | `/api/audit` | Audit trail (admin) |
-| `GET` | `/api/agents/status` | Which model mode is active |
+| `GET` | `/api/agents/status` | Which analysis engine is running |
 | `GET` | `/api/agents/tools` | The read-only tool list (admin) |
 | `GET` | `/api/health` | Is it alive |
 
@@ -391,26 +365,13 @@ Interactive API docs: `http://localhost:8000/api/docs`.
 ## Tests
 
 ```bash
-cd backend && .venv/Scripts/python -m pytest -q     # 63 tests
+cd backend && .venv/Scripts/python -m pytest -q     # 56 tests
 cd frontend && npm run build                        # typecheck + production build
 ```
 
 The suite covers ingestion and de-duplication, classification, correlation, what the agent tools are
-allowed to do (and refused), prompt-injection redaction, validating model output including fabricated
-alert IDs, the critic, login and roles, rate limiting, CORS, audit logging and the approval workflow.
-More detail in [docs/testing.md](docs/testing.md).
-
-## Running it in Docker
-
-```bash
-cp .env.example .env    # set SECRET_KEY and INGEST_TOKEN; demo accounts off for anything real
-docker compose up --build
-# dashboard http://localhost:5173, API http://localhost:8000
-```
-
-Optional local model: `docker compose --profile llm up --build` (with `OLLAMA_BASE_URL=http://ollama:11434`).
-The API runs as a non-root user with a read-only filesystem and SQLite on a volume, and nginx adds CSP
-and security headers. I wrote this but haven't run it — no Docker here — so treat it as untested.
+allowed to do (and refused), the critic's evidence checks, login and roles, rate limiting, CORS, audit
+logging and the approval workflow. More detail in [docs/testing.md](docs/testing.md).
 
 ## What this is not
 
@@ -421,28 +382,29 @@ I'd rather list the gaps than have someone find them after trusting the screensh
   makes me suspicious.
 - **Approved responses are simulated.** An approval is recorded with `execution: dry-run`. Nothing is
   actually blocked or isolated. Doing that for real needs an integration and a change-management policy.
-- **Log text is treated as hostile.** Control characters get stripped, instruction-like phrases get
-  redacted, and the evidence is wrapped in `<untrusted>` tags before it reaches a model. Prompt
-  injection attempts are recorded and never change what the agents are allowed to do.
 - **Detection is narrow.** Five regex rule families. Anything unfamiliar falls into `other`. There's a
   known false negative: a "files encrypted, readme dropped" ransomware alert lands in `other` and gets
   no isolation proposal.
+- **No external analysis.** There is no language model, no remote API and no learned behaviour. That
+  keeps it offline and explainable, and caps what it can recognise.
 - **SQLite and synchronous work.** Fine for a laptop. Real deployments want PostgreSQL (change
   `DATABASE_URL`) and a task queue instead of running investigations inside the request.
-- **No Docker, Kerberos, HA, migrations or retention policy.** The audit log is append-only through the
-  API but not tamper-evident at the database level. `/api/docs` is public. Tokens live in localStorage
-  and there's no revocation.
-- **Never run against a live Wazuh manager or a live model.** Everything you see was verified with the
-  simulator and the rules engine.
+- **No packaging story.** I run it from a virtualenv and `npm run dev`; there is no container image or
+  deployment recipe in the repo, because I never verified one.
+- **No HA, migrations or retention policy.** The audit log is append-only through the API but not
+  tamper-evident at the database level. `/api/docs` is public. Tokens live in localStorage and there's
+  no revocation.
+- **Never run against a live Wazuh manager.** Everything you see was verified with the simulator and
+  the rules engine.
 
 The full threat model and production checklist is in [docs/security-model.md](docs/security-model.md).
 
 ## More documentation
 
 - [docs/architecture.md](docs/architecture.md) — components, data flow, data model, correlation rules
-- [docs/agent-design.md](docs/agent-design.md) — both agents, tool contracts, prompt-injection defences
+- [docs/agent-design.md](docs/agent-design.md) — both agents, tool contracts, evidence rules
 - [docs/security-model.md](docs/security-model.md) — threat model, controls, limitations
 - [docs/testing.md](docs/testing.md) — how to test, what's covered, the simulator scenarios
-- [docs/security-audit.md](docs/security-audit.md) — audit findings, fixes and residual risk
+- [docs/security-audit.md](docs/security-audit.md) — audit findings and residual risk
 - [docs/acceptance-test-report.md](docs/acceptance-test-report.md) — the acceptance run: features, API/RBAC/security checks, detection results, screenshots
 - [docs/sample-investigations.md](docs/sample-investigations.md) — real output from the simulator

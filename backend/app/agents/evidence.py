@@ -1,7 +1,7 @@
 """Deterministic evidence collection.
 
 All data the agents see comes through :mod:`app.agents.tooling`, so the same validation
-and scope rules apply whether an LLM is configured or not.
+and scope rules apply regardless of the alert category.
 """
 
 from __future__ import annotations
@@ -13,7 +13,6 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from ..models import Incident
-from .guardrails import wrap_untrusted
 from .tooling import ToolError, execute
 
 
@@ -44,31 +43,6 @@ class Evidence:
             }
             for a in self.alerts
         ]
-
-    def summary_for_prompt(self) -> str:
-        lines = [
-            f"Incident: {self.incident.get('title')}",
-            f"Entity: {self.incident.get('entity')} | Category: {self.incident.get('category')} "
-            f"| Severity: {self.incident.get('severity')} | Alerts: {len(self.alerts)}",
-            f"First seen: {self.incident.get('first_seen')} | Last seen: {self.incident.get('last_seen')}",
-            "Alerts (id | time | severity | category | host | src_ip | user | title):",
-        ]
-        for alert in self.alerts:
-            lines.append(
-                f"- {alert['alert_id']} | {alert['event_time']} | {alert['severity']} | {alert['category']} "
-                f"| {alert['host'] or '-'} | {alert['src_ip'] or '-'} | {alert['username'] or '-'} | {alert['title']}"
-            )
-        if self.host_activity:
-            lines.append(f"Host activity: {self.host_activity}")
-        if self.ip_activity:
-            lines.append(f"IP activity: {self.ip_activity}")
-        if self.user_activity:
-            lines.append(f"User activity: {self.user_activity}")
-        if self.failures:
-            lines.append("Tool calls that were rejected: " + "; ".join(self.failures))
-        # Titles, hostnames, usernames and command lines all originate in log data.
-        # Redact instruction-like text and delimit the block so the model treats it as data.
-        return wrap_untrusted("evidence_bundle", "\n".join(lines), limit=8000)
 
 
 def collect(db: Session, incident: Incident) -> Evidence:

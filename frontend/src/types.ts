@@ -150,9 +150,7 @@ export interface AuditEntry {
 }
 
 export interface AgentStatus {
-  llm_available: boolean;
-  provider: string;
-  model: string;
-  detail: string;
   mode: string;
+  engine: string;
+  detail: string;
 }

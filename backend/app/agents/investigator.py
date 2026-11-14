@@ -1,12 +1,8 @@
 """Investigator agent: builds the primary investigation.
 
-Two layers:
-  * a deterministic engine that derives confirmed facts from validated evidence;
-  * an optional LLM narrative that can add hypotheses, which are always validated,
-    scope-checked and clearly separated from confirmed facts.
-
-The deterministic layer is authoritative: if the model is unavailable or returns
-anything that does not validate, the investigation still completes.
+A deterministic engine derives confirmed facts from validated evidence. Every
+statement carries the alert IDs that support it, and anything the telemetry
+cannot prove is kept separately as an open hypothesis.
 """
 
 from __future__ import annotations
@@ -15,9 +11,6 @@ import re
 
 from ..models import Incident
 from .evidence import Evidence, beacon_intervals
-from .guardrails import SECURITY_PREAMBLE, LLMOutputError, sanitize_untrusted, validate_model
-from .llm import LLMClient, get_llm_client
-from .output_schemas import InvestigatorOutput
 
 POWERSHELL_INDICATORS = {
     "encoded_command": re.compile(r"(?i)(encodedcommand|\s-enc\s|\s-e\s[a-z0-9+/=]{8,})"),
@@ -243,108 +236,26 @@ def heuristic_summary(incident: Incident, evidence: Evidence, findings: list[dic
     return " ".join(parts)
 
 
-def _prompt(incident: Incident, evidence: Evidence, findings: list[dict], hypotheses: list[str]) -> str:
-    return (
-        "Investigate the security incident below and return JSON with fields: summary, findings "
-        "(statement, evidence_alert_ids, confidence, nature), hypotheses, recommendations "
-        "(action_type one of block_ip|isolate_host|disable_account|collect_forensics, target, rationale, "
-        "risk_level), priority (1 highest - 5 lowest), confidence (0-1), attack_techniques.\n"
-        "Mark nature='confirmed' only for facts directly visible in the evidence.\n\n"
-        f"Deterministic findings already established:\n- "
-        + "\n- ".join(f["statement"] for f in findings)
-        + "\n\nOpen hypotheses:\n- "
-        + ("\n- ".join(hypotheses) if hypotheses else "none")
-        + "\n\n"
-        + evidence.summary_for_prompt()
-    )
 
-
-def investigate(
-    incident: Incident,
-    evidence: Evidence,
-    llm: LLMClient | None = None,
-) -> dict:
+def investigate(incident: Incident, evidence: Evidence) -> dict:
     """Run the investigator and return fields for an Investigation record."""
-    llm = llm or get_llm_client()
     findings, hypotheses, recommendations = heuristic_findings(incident, evidence)
     summary = heuristic_summary(incident, evidence, findings, hypotheses)
-    provider, model = "heuristic", "rules-v1"
-    error: str | None = None
     confidence = min(0.85, 0.55 + 0.05 * len([f for f in findings if f["nature"] == "confirmed"]))
-    priority = incident.priority
-    unsupported: list[str] = []
-    techniques = list(incident.techniques or [])
-
-    result = llm.generate_json(SECURITY_PREAMBLE, _prompt(incident, evidence, findings, hypotheses))
-    if result.ok:
-        try:
-            parsed = validate_model(InvestigatorOutput, result.text)
-        except LLMOutputError as exc:
-            error = f"LLM output rejected, deterministic findings kept: {exc}"
-        else:
-            provider, model = result.provider, result.model
-            valid_ids = set(evidence.alert_ids)
-            for claim in parsed.findings:
-                bad = [i for i in claim.evidence_alert_ids if i not in valid_ids]
-                if bad:
-                    unsupported.append(
-                        f"Model cited alert IDs {bad} that are not part of this incident (claim dropped)."
-                    )
-                    continue
-                if claim.nature == "confirmed" and not claim.evidence_alert_ids:
-                    unsupported.append(f"Unsupported confirmed claim without evidence: {claim.statement[:120]}")
-                    continue
-                findings.append(
-                    {
-                        "statement": sanitize_untrusted(claim.statement, 500)[0],
-                        "evidence_alert_ids": claim.evidence_alert_ids[:10],
-                        "confidence": claim.confidence,
-                        "nature": claim.nature,
-                        "source": "llm",
-                    }
-                )
-            for hyp in parsed.hypotheses:
-                cleaned = sanitize_untrusted(hyp, 400)[0]
-                if cleaned:
-                    hypotheses.append(cleaned)
-            if parsed.recommendations:
-                recommendations = [
-                    {
-                        "action_type": rec.action_type,
-                        "target": sanitize_untrusted(rec.target, 160)[0],
-                        "rationale": sanitize_untrusted(rec.rationale, 400)[0],
-                        "risk_level": rec.risk_level,
-                    }
-                    for rec in parsed.recommendations
-                ]
-            cleaned_summary = sanitize_untrusted(parsed.summary, 2000)[0]
-            if len(cleaned_summary) >= 15:
-                summary = cleaned_summary
-            # The model may raise priority but never below what severity justifies.
-            priority = min(parsed.priority, incident.priority)
-            confidence = min(0.85, max(0.3, parsed.confidence))
-            for technique in parsed.attack_techniques:
-                cleaned = sanitize_untrusted(technique, 60)[0]
-                if cleaned and cleaned not in techniques:
-                    techniques.append(cleaned)
-    else:
-        error = result.error
-
     return {
         "agent": "investigator",
-        "provider": provider,
-        "model": model,
+        "provider": "heuristic",
+        "model": "rules-v1",
         "status": "completed",
         "summary": summary,
         "findings": findings[:12],
         "evidence": evidence.as_evidence_list(),
         "hypotheses": hypotheses[:8],
-        "unsupported_claims": unsupported[:10],
+        "unsupported_claims": [],
         "missing_information": [],
         "recommendations": recommendations[:5],
-        "priority": max(1, min(5, priority)),
+        "priority": max(1, min(5, incident.priority)),
         "confidence": round(confidence, 2),
-        "techniques": techniques[:8],
-        "error": error,
-        "llm_available": result.ok,
+        "techniques": list(incident.techniques or [])[:8],
+        "error": None,
     }

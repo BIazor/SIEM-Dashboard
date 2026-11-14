@@ -121,36 +121,27 @@ When a model is available, its review can add unsupported claims and missing inf
 **cannot upgrade** a verdict that failed a deterministic check. Model `unsupported` verdicts are
 always honoured.
 
-## 4. Prompt-injection defences
+## 4. Evidence grounding
 
-Log lines are attacker-controlled in a real incident. Defences:
+Two rules keep the report honest:
 
-| Layer | Implementation |
+| Rule | Enforcement |
 | --- | --- |
-| Character hygiene | Control characters removed, whitespace normalised, length capped |
-| Instruction redaction | Regex set matches "ignore previous instructions", `system:`/`<system>` tags, "you are now", "reveal your system prompt", "mark this alert as benign", tool/action coercion; replaced with `[REDACTED-INSTRUCTION]` |
-| Structural separation | Evidence wrapped in `<untrusted source=... redactions=N>`; preamble states it is data, never instructions |
-| No tool use by the model | The model cannot call tools, so injected "run this" text has no execution path |
-| Output re-sanitisation | Model text is sanitised again before storage |
-| Grounding | Fabricated alert IDs and uncited "confirmed" claims are dropped |
-| Visibility | Redaction count is carried into the prompt and the injection text is preserved in evidence for the analyst |
+| A "confirmed" finding must cite alert IDs that belong to the incident | The investigator only emits findings for alerts in the evidence bundle; the critic re-checks every ID and re-counts the numbers it asserts |
+| An inference must stay an inference | The investigator records inference as a hypothesis; nothing promotes a hypothesis to confirmed without evidence |
 
-The test suite asserts that hostile text is redacted and that the literal instruction does not survive
-into the prompt.
+Ingested text is still stripped of control characters and length-clamped at the ingestion boundary
+(`ingestion/normalize.py`), because the analyst reads that text too.
 
-## 5. Provider abstraction
 
-`app/agents/llm.py` probes once per process:
+## 5. Analysis engine
 
-```
-LLM_PROVIDER=none      → deterministic only
-LLM_PROVIDER=ollama    → GET {base}/api/tags, then POST /api/chat (format=json)
-LLM_PROVIDER=openai    → POST {base}/chat/completions (response_format=json_object, retry without it on 400)
-LLM_PROVIDER=auto      → ollama → openai (if key) → deterministic
-```
+There is no model client, no provider probing and no API key. `investigate()` and `review()` are pure
+functions over the evidence bundle, so the same incident always produces the same report
+(`provider: heuristic`, `model: rules-v1`). That is deliberate: it runs offline and every sentence can
+be traced back to a rule. The trade-off is that it only recognises the five behaviour families the
+rules cover.
 
-`generate_json()` never raises: failures become `LLMResult(ok=False, error=...)`, which is stored on
-the investigation and surfaced in the UI ("Model note"). Temperature is 0.1 for reproducibility.
 
 ## 6. Recommendations and approvals
 

@@ -1,5 +1,10 @@
 # Independent security audit
 
+> **Scope note (2026-11-13):** the language-model provider layer and the Docker Compose
+> deployment described in this report have since been removed from the repository. Findings below
+> are preserved as written at the time of the review.
+
+
 Scope: the complete Aegis SOC platform in this repository (backend, agents, frontend, deployment
 files and documentation). The audit was performed against the running application, not the build
 report, and combined source review, dependency scanning, live HTTP probes and the automated suite.

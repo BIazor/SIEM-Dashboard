@@ -11,7 +11,6 @@ from .. import audit
 from ..models import Incident, Investigation, ProposedAction
 from . import critic, investigator
 from .evidence import collect
-from .llm import LLMClient, get_llm_client
 
 AGENT_ACTOR = "investigator-agent"
 
@@ -22,14 +21,12 @@ def run_investigation(
     *,
     actor_label: str = AGENT_ACTOR,
     actor_role: str = "agent",
-    llm: LLMClient | None = None,
     source_ip: str | None = None,
 ) -> tuple[Investigation, Investigation]:
     """Run both agents for one incident and persist their reports."""
-    llm = llm or get_llm_client()
     evidence = collect(db, incident)
 
-    primary = investigator.investigate(incident, evidence, llm)
+    primary = investigator.investigate(incident, evidence)
     investigator_record = Investigation(incident_id=incident.id, **{
         key: primary[key]
         for key in (
@@ -41,7 +38,7 @@ def run_investigation(
     db.add(investigator_record)
     db.flush()
 
-    reviewed = critic.review(incident, evidence, primary, llm)
+    reviewed = critic.review(incident, evidence, primary)
     critic_record = Investigation(incident_id=incident.id, **{
         key: reviewed[key]
         for key in (
@@ -80,8 +77,6 @@ def run_investigation(
             "model": primary["model"],
             "verdict": critic_record.verdict,
             "confidence": critic_record.confidence,
-            "llm_available": primary.get("llm_available", False),
-            "parse_error": primary.get("error"),
         },
     )
     db.commit()

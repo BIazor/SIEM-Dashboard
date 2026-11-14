@@ -1,5 +1,10 @@
 # Independent acceptance test report — Aegis SOC
 
+> **Scope note (2026-11-13):** the language-model provider layer and the Docker Compose
+> deployment described in this report have since been removed from the repository. Findings below
+> are preserved as written at the time of the review.
+
+
 Date: 2026-11-08/09 · Verifier: independent engineering/security/QA pass · Scope: repository plus a
 running instance on the build host.
 

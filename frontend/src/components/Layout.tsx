@@ -48,11 +48,11 @@ export default function Layout() {
         </nav>
 
         <div className="sidebar-foot">
-          <div className={`agent-pill ${agent?.llm_available ? "agent-ai" : "agent-heuristic"}`}>
+          <div className="agent-pill agent-heuristic">
             <span className="dot" aria-hidden="true" />
-            {agent?.llm_available ? `AI: ${agent.model}` : "Deterministic mode"}
+            Rules engine
           </div>
-          {agent && <p className="tiny muted">{agent.detail}</p>}
+          <p className="tiny muted">{agent?.detail ?? "Rule-based analysis; no model required."}</p>
         </div>
       </aside>
 

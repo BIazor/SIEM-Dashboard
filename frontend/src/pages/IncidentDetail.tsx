@@ -156,10 +156,10 @@ export default function IncidentDetail() {
       </div>
 
       <Card
-        title="AI investigation summary"
+        title="Investigation summary"
         subtitle={
           investigator
-            ? `${investigator.provider} · ${investigator.model} · reviewer verdict: ${critic?.verdict ?? "pending"}`
+            ? `Rule-based analysis · reviewer verdict: ${critic?.verdict ?? "pending"}`
             : "No investigation has been run yet"
         }
       >
@@ -169,11 +169,6 @@ export default function IncidentDetail() {
           <EmptyState>
             Run an investigation to have the investigator agent build a case and the critic agent review it.
           </EmptyState>
-        )}
-        {investigator?.error && (
-          <p className="notice">
-            <strong>Model note:</strong> {investigator.error}
-          </p>
         )}
       </Card>
 
@@ -227,7 +222,7 @@ export default function IncidentDetail() {
               <div className="head-badges">
                 <VerdictPill verdict={critic.verdict} />
                 <span className="pill">confidence {confidencePct(critic.confidence)}</span>
-                <span className="pill">{critic.provider}</span>
+                <span className="pill">rules engine</span>
               </div>
               <p className="summary-text">{critic.summary}</p>
               <h3 className="section-label">Unsupported claims</h3>
@@ -382,7 +377,6 @@ function FindingList({ findings, empty }: { findings: Finding[]; empty: string }
               <span className="evidence-ids">alerts {finding.evidence_alert_ids.join(", ")}</span>
             )}
             <span className="pill tiny">{finding.confidence}</span>
-            {finding.source === "llm" && <span className="pill tiny">model</span>}
           </span>
         </li>
       ))}

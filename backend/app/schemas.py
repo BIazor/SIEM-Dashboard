@@ -183,8 +183,6 @@ class IngestResponse(BaseModel):
 class HealthResponse(BaseModel):
     status: Literal["ok"]
     version: str
-    llm_provider: str
-    llm_available: bool
 
 
 # --------------------------------------------------------------------------- stats

@@ -61,7 +61,7 @@ flowchart TB
 | `app/detection/correlation.py` | Groups alerts into incidents per entity + category inside a 90-minute window |
 | `app/agents/tooling.py` | The only data access path for agents: 6 read-only tools, strict pydantic args, incident-scoped |
 | `app/agents/evidence.py` | Calls the tools and builds the evidence bundle used by both agents |
-| `app/agents/investigator.py` | Deterministic findings + optional validated LLM narrative |
+| `app/agents/investigator.py` | Rule-based findings, each citing the alerts that support it |
 | `app/agents/critic.py` | Independently re-derives facts, checks claims, enumerates missing information |
 | `app/agents/orchestrator.py` | Runs both agents, persists reports, updates the incident, proposes actions |
 | `app/api/approvals.py` | Approver-only decision endpoint, dry-run execution record |
@@ -199,12 +199,10 @@ sequenceDiagram
     T-->>O: validated, scoped evidence
     O->>I: investigate(evidence)
     I->>I: rule-based findings (confirmed)
-    I->>I: optional LLM narrative → validate → ground-check
     I-->>O: report
     O->>DB: Investigation(investigator)
     O->>C: review(evidence, report)
     C->>C: re-verify claims and counts
-    C->>C: optional LLM review, clamped by hard checks
     C-->>O: verdict + unsupported claims + missing info
     O->>DB: Investigation(critic)
     O->>DB: update incident, propose actions (pending)
@@ -214,10 +212,8 @@ sequenceDiagram
 
 | Failure | Behaviour |
 | --- | --- |
-| No LLM provider | Deterministic findings; `error` field explains why; UI shows "Deterministic mode" |
-| LLM timeout / 5xx | Same as above, investigation still completes |
-| LLM returns invalid JSON or schema violation | Reply rejected, `error` records the violation, deterministic findings kept |
-| LLM cites alert IDs outside the incident | Claim dropped, recorded as an unsupported claim |
+| A finding cites alert IDs outside the incident | Claim dropped; the critic records it as unsupported |
+| The incident has no usable evidence | Low-confidence findings; the critic lists the missing telemetry |
 | Tool args invalid or out of scope | Tool raises, evidence records the rejected call, critic reports it |
 | Approver decides twice | `409 Conflict` |
 | Webhook token invalid | `401`, nothing stored |

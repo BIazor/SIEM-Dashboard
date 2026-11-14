@@ -3,7 +3,7 @@
 ## 1. Running the suites
 
 ```bash
-# Backend (63 tests)
+# Backend (56 tests)
 cd backend
 .venv/Scripts/python -m pytest -q            # macOS/Linux: .venv/bin/python
 
@@ -15,8 +15,8 @@ npm run build
 cd backend && .venv/Scripts/python -m pytest tests/test_agents.py -v
 ```
 
-Tests run against a temporary SQLite file, with `ENVIRONMENT=test`, `LLM_PROVIDER=none` (no network) and
-the login limiter reset between tests. No test touches the development database.
+Tests run against a temporary SQLite file, with `ENVIRONMENT=test`, no network access, and the login
+limiter reset between tests. No test touches the development database.
 
 ## 2. What is covered
 
@@ -24,10 +24,10 @@ the login limiter reset between tests. No test touches the development database.
 | --- | --- | --- |
 | `tests/test_auth.py` | 9 | Login, wrong password, unknown user, invalid email, rate limiting (429), `/me`, scrypt format/salting |
 | `tests/test_ingest.py` | 10 | Token auth, brute-force correlation, dedupe, PowerShell/network/privilege/file classification, sanitisation, batch cap, payload shapes |
-| `tests/test_agents.py` | 13 | Read-only tool catalogue, unknown-tool denial, strict args, scope enforcement, injection redaction, output validation, fabricated alert IDs, critic verification |
+| `tests/test_agents.py` | 8 | Read-only tool catalogue, unknown-tool denial, strict args, scope enforcement, rule-based findings, critic verification of fabricated IDs |
 | `tests/test_api_security.py` | 10 | Auth requirements, viewer read-only, approver cannot investigate, analyst cannot approve, admin-only audit, security headers, CORS allow/deny, LIKE escaping, type validation |
 | `tests/test_approvals.py` | 7 | Proposals after investigation, queue visibility, approval → contained + audit, rejection, 409 on double decision, manual status change |
-| `tests/test_hardening.py` | 10 | Evidence and critic prompts redacted/wrapped, proxy-header trust gate, JWT subject handling, limiter key bound, seeder password policy, production config guards, approver-gated containment |
+| `tests/test_hardening.py` | 8 | Proxy-header trust gate, JWT subject handling, limiter key bound, seeder password policy, production config guards, approver-gated containment, unsupported-claim verdict |
 | `tests/test_windows_collector.py` | 4 | Windows Event Log mapping: 4625 → brute force with source IP, 4624 low-noise, 4688 PowerShell escalation, 4720/1102 severity and stable unique alert IDs |
 
 Frontend verification is browser-based (Playwright, or Chrome DevTools Protocol when MCP is
@@ -119,9 +119,6 @@ when every confirmed finding is backed by incident alerts.
 
 ## 7. Gaps
 
-- No coverage for the live LLM HTTP calls themselves (only the client contract and downstream
-  validation, using a stub). Verified against a real provider: **no** — none was available.
-- Docker Compose was not executed on the build host (Docker is not installed), so the images are
-  unbuilt/unrun.
+- No coverage for a live Wazuh manager or real endpoint telemetry: only the simulator was exercised.
 - No load/performance testing; investigations are synchronous.
 - No automated accessibility audit (keyboard use is possible, labels exist on inputs).

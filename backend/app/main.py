@@ -10,7 +10,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from . import __version__
-from .agents.llm import get_llm_client
 from .api import agents as agents_api
 from .api import alerts as alerts_api
 from .api import approvals as approvals_api
@@ -51,18 +50,12 @@ def create_app() -> FastAPI:
         seeded = ensure_demo_users()
         if seeded:
             logger.info("Seeded demo accounts: %s", ", ".join(seeded))
-        llm_status = get_llm_client().describe()
-        app.state.llm_status = llm_status
-        if llm_status["available"]:
-            logger.info("LLM provider ready: %s (%s)", llm_status["provider"], llm_status["detail"])
-        else:
-            logger.warning("Deterministic-only mode: %s", llm_status["detail"])
         yield
 
     app = FastAPI(
         title=settings.app_name,
         version=__version__,
-        description="AI-assisted Security Operations Center platform (read-only agents, human-approved actions).",
+        description="Security Operations Center platform (read-only agents, human-approved actions).",
         lifespan=lifespan,
         docs_url="/api/docs",
         openapi_url="/api/openapi.json",
@@ -91,13 +84,7 @@ def create_app() -> FastAPI:
 
     @app.get("/api/health", response_model=HealthResponse, tags=["system"])
     def health() -> HealthResponse:
-        description = get_llm_client().describe()
-        return HealthResponse(
-            status="ok",
-            version=__version__,
-            llm_provider=str(description["provider"]),
-            llm_available=bool(description["available"]),
-        )
+        return HealthResponse(status="ok", version=__version__)
 
     return app
 

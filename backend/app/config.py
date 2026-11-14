@@ -47,15 +47,6 @@ class Settings(BaseSettings):
     # CORS
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
 
-    # LLM provider: auto -> try ollama, then openai, then deterministic heuristics
-    llm_provider: Literal["auto", "ollama", "openai", "none"] = "auto"
-    llm_timeout_seconds: float = 45.0
-    ollama_base_url: str = "http://localhost:11434"
-    ollama_model: str = "llama3.1"
-    openai_base_url: str = "https://api.openai.com/v1"
-    openai_model: str = "gpt-4o-mini"
-    openai_api_key: str = ""
-
     # Demo seeding (never enable in production)
     seed_demo_users: bool = False
     seed_admin_email: str = "admin@soc.local"

@@ -1,7 +1,7 @@
 """Shared pytest fixtures.
 
 Environment variables are set before the application is imported so the app uses a
-throwaway SQLite file and the deterministic (offline) agent path.
+throwaway SQLite file and the rule-based agent path.
 """
 
 from __future__ import annotations
@@ -20,10 +20,8 @@ os.environ.update(
         "SECRET_KEY": "test-secret-key-0123456789abcdefghijklmnop",
         "INGEST_TOKEN": "test-ingest-token",
         "SEED_DEMO_USERS": "false",
-        "LLM_PROVIDER": "none",
         "CORS_ORIGINS": "http://localhost:5173",
         "LOGIN_RATE_LIMIT_PER_MINUTE": "50",
-        "OPENAI_API_KEY": "",
     }
 )
 
