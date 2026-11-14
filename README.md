@@ -83,8 +83,10 @@ I had to look most of these up myself, so here they are in one place.
 | Human approval queue plus audit log | Works, tested |
 | Login, roles, password hashing, rate limiting | Works, tested |
 | React dashboard | Works, clicked through in a real browser |
-| Pulling alerts from the Wazuh API | Not built — alerts are pushed to this app, not pulled |
-| Actually blocking, isolating or disabling anything | Not built, on purpose — approvals are recorded as a dry run |
+
+Two things it doesn't do, both on purpose: it doesn't pull alerts from Wazuh (Wazuh pushes them here
+through the webhook further down), and it never blocks, isolates or disables anything — an approval is
+recorded as a dry run, so what you're approving is the decision, not an action on the network.
 
 There is no language-model integration. The analysis is rule-based end to end, which means it runs
 offline, costs nothing, and can explain every sentence it produces — but it only recognises the five
