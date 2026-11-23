@@ -1,0 +1,75 @@
+{
+  "version": "2026.11.1",
+  "rules": [
+    {
+      "key": "powershell.execution",
+      "category": "powershell",
+      "order": 10,
+      "title": "Suspicious PowerShell execution",
+      "technique": "T1059.001 - PowerShell",
+      "severity_floor": "medium",
+      "patterns": [
+        "(?i)(powershell|pwsh|encodedcommand|\\s-enc\\s|\\s-e\\s|downloadstring|invoke-expression|iex\\s*\\(|script\\s*block|4104|amsi)"
+      ],
+      "references": [
+        "https://attack.mitre.org/techniques/T1059/001/"
+      ]
+    },
+    {
+      "key": "account.privilege_change",
+      "category": "privilege_change",
+      "order": 20,
+      "title": "Account privilege change",
+      "technique": "T1098 - Account Manipulation",
+      "severity_floor": "medium",
+      "patterns": [
+        "(?i)(user added to|added to (the )?(local )?administrators?|group (added|changed|modified)|\\b4720\\b|\\b4728\\b|\\b4732\\b|\\b4756\\b|new user (account )?created|privilege (escalation|change)|sudoers|granted sudo|role assignment|account (enabled|created))"
+      ],
+      "references": [
+        "https://attack.mitre.org/techniques/T1098/"
+      ]
+    },
+    {
+      "key": "file.integrity_change",
+      "category": "file_integrity",
+      "order": 30,
+      "title": "Suspicious file or configuration change",
+      "technique": "T1565.001 - Stored Data Manipulation",
+      "severity_floor": null,
+      "patterns": [
+        "(?i)(file (added|modified|deleted|integrity)|syscheck|integrity (checking|sum)|\\b550\\b|\\b554\\b|startup folder|autorun|scheduled task created|registry (key )?(modified|added))"
+      ],
+      "references": [
+        "https://attack.mitre.org/techniques/T1565/001/"
+      ]
+    },
+    {
+      "key": "auth.failure",
+      "category": "brute_force",
+      "order": 40,
+      "title": "Repeated authentication failures",
+      "technique": "T1110 - Brute Force",
+      "severity_floor": "low",
+      "patterns": [
+        "(?i)(failed (password|logon|login|authentication)|authentication failure|logon failure|invalid user|brute ?force|\\b4625\\b|\\b5710\\b|too many authentication failures|repeated (login|authentication) failures)"
+      ],
+      "references": [
+        "https://attack.mitre.org/techniques/T1110/"
+      ]
+    },
+    {
+      "key": "network.behavior",
+      "category": "network",
+      "order": 50,
+      "title": "Anomalous network activity",
+      "technique": "T1071 - Application Layer Protocol",
+      "severity_floor": null,
+      "patterns": [
+        "(?i)(network connection|outbound connection|suspicious (connection|traffic|dns)|c2|command and control|beacon|port scan|firewall (drop|deny|block)|dns (query|tunnel)|unusual port|\\b5156\\b|\\b5157\\b|netstat|reverse shell|tcp connection)"
+      ],
+      "references": [
+        "https://attack.mitre.org/techniques/T1071/"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,211 @@
+"""Normalize Wazuh / Sysmon alerts into the platform's alert shape.
+
+All fields are treated as untrusted: values are coerced, length-limited and
+stripped of control characters before they enter the database or any prompt.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import ipaddress
+import json
+import re
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from typing import Any
+
+from ..detection.rules import classify, is_suppressed, severity_for_level
+
+_CONTROL_CHARS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
+_WHITESPACE = re.compile(r"[ \t]+")
+
+
+def clean_text(value: Any, max_length: int = 4000) -> str:
+    """Return a safe, length-limited string from an untrusted value."""
+    if value is None:
+        return ""
+    text = str(value)
+    text = _CONTROL_CHARS.sub("", text)
+    text = text.replace("\r\n", "\n").replace("\r", "\n")
+    text = _WHITESPACE.sub(" ", text)
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    return text.strip()[:max_length]
+
+
+def _clean_ip(value: Any) -> str | None:
+    text = clean_text(value, 64)
+    if not text:
+        return None
+    try:
+        return str(ipaddress.ip_address(text))
+    except ValueError:
+        return None
+
+
+def _coerce_int(value: Any, default: int = 0) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def parse_timestamp(value: Any) -> tuple[datetime, bool]:
+    """Parse a timestamp and report whether ingest time had to be substituted.
+
+    A payload with an unusable timestamp used to silently inherit ``now()``, which
+    corrupts event ordering and correlation windows without any trace.  The
+    substitution is still made (the alert is real) but it is now recorded.
+    """
+    text = clean_text(value, 64)
+    if text:
+        candidate = text.replace("Z", "+00:00")
+        try:
+            parsed = datetime.fromisoformat(candidate)
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=UTC)
+            return parsed.astimezone(UTC), False
+        except ValueError:
+            pass
+    return datetime.now(UTC), True
+
+
+def _parse_timestamp(value: Any) -> datetime:  # backwards compatible helper
+    return parse_timestamp(value)[0]
+
+
+def _dig(data: Any, *keys: str) -> Any:
+    current = data
+    for key in keys:
+        if not isinstance(current, dict):
+            return None
+        current = current.get(key)
+    return current
+
+
+@dataclass
+class NormalizedEvent:
+    alert_uid: str
+    source: str
+    rule_id: str
+    rule_level: int
+    severity: str
+    category: str
+    detection_rule: str
+    technique: str | None
+    title: str
+    description: str
+    src_ip: str | None
+    dst_ip: str | None
+    host: str | None
+    username: str | None
+    event_time: datetime
+    event_time_inferred: bool
+    suppressed: bool = False
+    suppression_reason: str | None = None
+    raw: dict[str, Any] = field(default_factory=dict)
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "alert_uid": self.alert_uid,
+            "source": self.source,
+            "rule_id": self.rule_id,
+            "rule_level": self.rule_level,
+            "severity": self.severity,
+            "category": self.category,
+            "detection_rule": self.detection_rule,
+            "technique": self.technique,
+            "title": self.title,
+            "description": self.description,
+            "src_ip": self.src_ip,
+            "dst_ip": self.dst_ip,
+            "host": self.host,
+            "username": self.username,
+            "event_time": self.event_time,
+            "event_time_inferred": self.event_time_inferred,
+            "suppressed": self.suppressed,
+            "raw": self.raw,
+        }
+
+
+def _fingerprint(payload: dict[str, Any]) -> str:
+    canonical = json.dumps(payload, sort_keys=True, default=str, separators=(",", ":"))
+    return "evt-" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:32]
+
+
+def normalize_wazuh_alert(payload: dict[str, Any], source: str = "wazuh") -> NormalizedEvent:
+    """Map a Wazuh (or Wazuh-forwarded Sysmon) alert document to NormalizedEvent."""
+    if not isinstance(payload, dict):
+        raise ValueError("Alert payload must be an object")
+
+    rule = payload.get("rule") if isinstance(payload.get("rule"), dict) else {}
+    agent = payload.get("agent") if isinstance(payload.get("agent"), dict) else {}
+    data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
+
+    win = data.get("win") if isinstance(data.get("win"), dict) else {}
+    eventdata = win.get("eventdata") if isinstance(win.get("eventdata"), dict) else {}
+    system = win.get("system") if isinstance(win.get("system"), dict) else {}
+
+    title = clean_text(rule.get("description") or payload.get("title") or "Unclassified security event", 300)
+    full_log = clean_text(
+        payload.get("full_log") or payload.get("message") or eventdata.get("commandLine") or "", 4000
+    )
+
+    rule_level = _coerce_int(rule.get("level", payload.get("rule_level", 0)))
+    rule_id = clean_text(rule.get("id", payload.get("rule_id", "")), 40) or "0"
+
+    # A single comma-separated field from Wazuh keeps normalization simple.
+    groups_raw = rule.get("groups") or payload.get("groups") or []
+    if isinstance(groups_raw, str):
+        groups = [g.strip() for g in groups_raw.split(",") if g.strip()]
+    elif isinstance(groups_raw, list):
+        groups = [clean_text(g, 40) for g in groups_raw]
+    else:
+        groups = []
+
+    src_ip = _clean_ip(
+        data.get("srcip") or data.get("src_ip") or _dig(data, "win", "eventdata", "ipAddress")
+    )
+    dst_ip = _clean_ip(data.get("dstip") or data.get("dst_ip"))
+    host = clean_text(agent.get("name") or data.get("hostname") or system.get("computer"), 120) or None
+    username = clean_text(
+        data.get("dstuser")
+        or data.get("srcuser")
+        or eventdata.get("targetUserName")
+        or eventdata.get("user")
+        or payload.get("username"),
+        120,
+    ) or None
+
+    match = classify(title=title, description=full_log, rule_id=rule_id, groups=groups)
+    category = match.category if match else "other"
+    severity = severity_for_level(rule_level, match.severity_floor if match else None)
+
+    suppression_reason = is_suppressed(host=host, src_ip=src_ip, category=category)
+    if suppression_reason is not None:
+        # Keep the alert visible, but it must not page anyone.
+        severity = "info"
+
+    event_time, inferred = parse_timestamp(payload.get("timestamp"))
+    alert_uid = clean_text(payload.get("id") or payload.get("alert_uid") or "", 128) or _fingerprint(payload)
+
+    return NormalizedEvent(
+        alert_uid=alert_uid,
+        source=clean_text(source, 40) or "wazuh",
+        rule_id=rule_id,
+        rule_level=max(0, min(rule_level, 16)),
+        severity=severity,
+        category=category,
+        detection_rule=match.key if match else "unmatched",
+        technique=match.technique if match else None,
+        title=title,
+        description=full_log,
+        src_ip=src_ip,
+        dst_ip=dst_ip,
+        host=host,
+        username=username,
+        event_time=event_time,
+        event_time_inferred=inferred,
+        suppressed=suppression_reason is not None,
+        suppression_reason=suppression_reason,
+        raw=payload,
+    )

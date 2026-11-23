@@ -1,0 +1,5 @@
+{
+  "version": "1",
+  "notes": "Matching entries keep the alert but force severity to 'info'. Leave a selector empty to treat it as a wildcard.",
+  "entries": []
+}
